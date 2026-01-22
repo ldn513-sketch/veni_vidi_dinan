@@ -1,0 +1,97 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Cache Gradle packages
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
+    
+    - name: Install pnpm
+      run: npm install -g pnpm
+    
+    - name: Install project dependencies
+      run: pnpm install --no-frozen-lockfile
+    
+    - name: Build Vite project
+      run: pnpm run build
+    
+    - name: Install Capacitor
+      run: pnpm add --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android
+    
+    - name: Create Capacitor config
+      run: |
+        cat > capacitor.config.json << 'EOF'
+        {
+          "appId": "com.venividi.dinan",
+          "appName": "Veni Vidi Dinan",
+          "webDir": "dist",
+          "bundledWebRuntime": false,
+          "server": {
+            "androidScheme": "https"
+          },
+          "plugins": {
+            "SplashScreen": {
+              "launchShowDuration": 2000,
+              "backgroundColor": "#1a1a2e",
+              "androidScaleType": "CENTER_CROP",
+              "showSpinner": false
+            }
+          },
+          "android": {
+            "allowMixedContent": true,
+            "captureInput": true,
+            "webContentsDebuggingEnabled": true
+          }
+        }
+        EOF
+    
+    - name: Add Android platform
+      run: npx cap add android
+    
+    - name: Sync Capacitor
+      run: npx cap sync android
+    
+    - name: Make gradlew executable
+      run: chmod +x android/gradlew
+    
+    - name: Build APK (Debug)
+      run: |
+        cd android
+        ./gradlew assembleDebug --stacktrace --no-daemon
+    
+    - name: Upload Debug APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: veni-vidi-dinan-debug
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 30
