@@ -5,7 +5,7 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch:  # Permet de lancer manuellement
+  workflow_dispatch:
 
 jobs:
   build:
@@ -36,13 +36,44 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
     
-    - name: Install Capacitor
-      run: |
-        npm install --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android
+    - name: Install pnpm
+      run: npm install -g pnpm
     
-    - name: Initialize Capacitor
+    - name: Install project dependencies
+      run: pnpm install --no-frozen-lockfile
+    
+    - name: Build Vite project
+      run: pnpm run build
+    
+    - name: Install Capacitor
+      run: pnpm add --legacy-peer-deps @capacitor/core @capacitor/cli @capacitor/android
+    
+    - name: Create Capacitor config
       run: |
-        npx cap init "Veni Vidi Dinan" "com.venividi.dinan" --web-dir="."
+        cat > capacitor.config.json << 'EOF'
+        {
+          "appId": "com.venividi.dinan",
+          "appName": "Veni Vidi Dinan",
+          "webDir": "dist",
+          "bundledWebRuntime": false,
+          "server": {
+            "androidScheme": "https"
+          },
+          "plugins": {
+            "SplashScreen": {
+              "launchShowDuration": 2000,
+              "backgroundColor": "#1a1a2e",
+              "androidScaleType": "CENTER_CROP",
+              "showSpinner": false
+            }
+          },
+          "android": {
+            "allowMixedContent": true,
+            "captureInput": true,
+            "webContentsDebuggingEnabled": true
+          }
+        }
+        EOF
     
     - name: Add Android platform
       run: npx cap add android
@@ -61,6 +92,6 @@ jobs:
     - name: Upload Debug APK
       uses: actions/upload-artifact@v4
       with:
-        name: veni-vidi-debug-apk
+        name: veni-vidi-dinan-debug
         path: android/app/build/outputs/apk/debug/app-debug.apk
         retention-days: 30
